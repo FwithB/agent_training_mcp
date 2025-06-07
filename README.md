@@ -1,380 +1,162 @@
-# YOLO & CVAT Automation System - Iteration 5
+# YOLO MCP 训练助手
 
-[English](README.md) | [中文](README_CN.md)
+这是一个基于MCP架构的YOLO训练系统，通过客户端-服务器模式实现了自然语言控制YOLO模型训练的功能。本项目采用消息通信协议(MCP)将原本单机的YOLO训练系统拆分为服务器端和客户端两个独立组件，使用户可以从任何设备远程控制训练过程。客户端通过OpenRouter API解析自然语言指令，将其转换为结构化请求发送给服务器，服务器执行实际训练任务并返回结果。
 
-A comprehensive machine learning workflow management system based on MCP architecture, integrating YOLO model training, CVAT data annotation, model deployment, and automated inference capabilities.
+## 项目特点
 
-## Overview
+* **MCP客户端-服务器架构**：将用户交互与计算密集型任务分离，实现分布式训练控制
+* **自然语言指令解析**：集成OpenRouter API，支持中文自然语言控制训练流程
+* **远程训练控制**：可以在笔记本等轻量级设备上控制服务器的训练任务
+* **灵活部署**：客户端和服务器可以部署在不同机器上，通过网络通信
+* **实时结果反馈**：完整的训练状态和结果返回机制
 
-Iteration 5 builds upon Iteration 4 to deliver a complete end-to-end machine learning workflow automation system. The system now supports the entire ML pipeline from data upload, annotation, training, deployment to inference. Beyond YOLO model training and browser automation, it features complete CVAT API integration, model deployment services, and data format conversion capabilities.
+## 项目背景与动机
 
-## System Architecture
+本项目是对原单机版YOLO Agent训练助手的架构升级，解决了以下问题：
+
+1. **资源分离**：将高性能计算任务与用户交互界面分离，优化资源使用
+2. **远程控制**：支持从任何设备远程启动和监控训练过程
+3. **多用户支持**：为未来支持多用户同时访问训练服务器奠定基础
+4. **持续服务**：服务端可以持续运行，客户端可以随时连接或断开
+
+## 项目结构
 
 ```
-Client (main.py) <---> Server (server.py)
-                           |
-                           +---> Training Module (train.py)
-                           +---> Browser Module (browser.py)
-                           +---> CVAT API Module (cvat_api.py)
-                           +---> Deployment Module (deploy_to_cvat.py)
-                           |
-                           v
-                    Nuclio Services <--> CVAT System
+agent_training_mcp/
+├── server.py        # MCP服务器，接收训练请求并执行训练
+├── train.py         # 训练模块，负责调用Ultralytics YOLO进行训练
+├── main.py          # MCP客户端，处理用户交互、指令解析和请求发送
+├── requirements.txt # 项目依赖列表
+└── README.md        # 项目说明文档
 ```
 
-## Core Components
+### 组件说明
 
-### Main Modules
-- **main.py**: Client application with 11 functional options
-- **server.py**: MCP server handling client requests and module coordination
-- **train.py**: YOLO model training module
-- **browser.py**: Browser automation control module
-- **cvat_api.py**: Complete CVAT system API wrapper
-- **deploy_to_cvat.py**: Model deployment to Nuclio services
-- **config.py**: System configuration management
+* **server.py**：
+  * 使用Flask框架创建HTTP服务器
+  * 提供`/train`接口接收训练请求
+  * 调用train.py中的训练函数执行实际训练
+  * 将训练结果以JSON格式返回给客户端
 
-### Support Modules
-- **test_model.py**: Model testing and validation
-- **deploy_templates/**: Nuclio deployment templates
-  - **function.yaml**: Nuclio function configuration template
-  - **main.py**: Inference service code template
+* **train.py**：
+  * 封装YOLOv8训练功能为可调用函数
+  * 处理各种训练参数（模型类型、轮数、数据集等）
+  * 提供标准化的返回格式，包含训练状态和结果信息
 
-### Data Directories
-- **datasets/**: Converted YOLO format training data
-- **downloads/**: Raw annotation data downloaded from CVAT
-- **runs/**: Model training outputs and weight files
-- **coco128/**: Sample dataset
+* **main.py**：
+  * 提供用户交互界面（命令行）
+  * 通过OpenRouter API解析自然语言指令
+  * 将解析结果转换为HTTP请求发送给服务器
+  * 接收并显示服务器返回的训练结果
 
-## Key Features vs Iteration 4
+## 环境与依赖
 
-| Feature | Iteration 4 | Iteration 5 |
-|---------|-------------|-------------|
-| Functionality | YOLO training + Browser automation | Complete ML workflow platform |
-| Client Options | 4 basic functions | 11 comprehensive modules |
-| Core Components | 4 (main.py, server.py, train.py, browser.py) | 8 (added cvat_api.py, deploy_to_cvat.py, config.py, test_model.py) |
-| Data Management | No data management capabilities | Complete data lifecycle management |
-| Model Deployment | No deployment features | Nuclio microservice auto-deployment |
-| CVAT Integration | Basic browser control | Complete API integration and automation |
-| Workflow Integration | Partial workflow | End-to-end closed-loop workflow |
-| Natural Language | Basic command parsing | Complex workflow instruction support |
+### 服务器端依赖
+* Python 3.6+
+* ultralytics：YOLOv8模型训练库
+* flask：HTTP服务器框架
 
-## Client Functionality Overview
+### 客户端依赖
+* Python 3.6+
+* openai：用于调用OpenRouter API
+* requests：用于发送HTTP请求
 
-The system provides 11 main functional options:
-
-### 1. Natural Language Instruction Control
-Execute single operations through natural language dialogue:
-- **Training commands**: "Train yolov8n model using latest dataset for 5 epochs"
-- **Deployment commands**: "Deploy latest trained model to CVAT"
-- **Data commands**: "Upload data to CVAT and create new task"
-- **Annotation commands**: "Run auto annotation on task 14"
-- **Download commands**: "Download dataset from task 12"
-- **Conversion commands**: "Convert recently downloaded dataset to YOLO format"
-
-### 2. Train YOLO Model (Manual Parameters)
-Precise control over model training process:
-- Select model type (yolov8n/s/m/l/x)
-- Set training epochs
-- Specify dataset configuration file
-- Auto-discover latest converted datasets
-- Real-time training progress and results
-
-### 3. Browser Control (Manual Parameters)
-Browser automation operations:
-- Open browser and navigate to CVAT
-- Auto-login to CVAT system
-- Navigate to specific URLs
-- Create CVAT projects
-- Force browser restart
-- Support Chrome, Edge, Firefox
-
-### 4. Deploy Model to CVAT
-Deploy trained models as inference services:
-- Auto-discover latest trained model weights
-- Generate Nuclio function configurations
-- Configure GPU resources and dependencies
-- Deploy as scalable microservices
-- Seamless CVAT system integration
-
-### 5. Upload Data to CVAT
-Create annotation tasks and upload data:
-- Auto-create CVAT tasks
-- Upload image data to tasks
-- Configure COCO 80-class label system
-- Support batch image uploads
-- Automatic compression and format conversion
-
-### 6. Model Inference/Auto Annotation
-Use deployed models for automatic annotation:
-- Select deployed inference models
-- Specify CVAT tasks for annotation
-- Configure confidence thresholds
-- Set batch processing sizes
-- Monitor annotation progress and results
-
-### 7. View Annotation Interface
-Open CVAT annotation interface:
-- Specify task ID and job ID
-- Auto-login to CVAT system
-- Direct navigation to annotation interface
-- Support multi-task switching
-- Browser state management
-
-### 8. Download Dataset
-Export annotation data from CVAT:
-- Select export formats (CVAT, COCO, Datumaro, etc.)
-- Specify output paths
-- Choose whether to include image files
-- Automatic packaging and download
-- Support large dataset batch processing
-
-### 9. Convert Dataset Format
-Convert CVAT data to YOLO format:
-- Auto-identify recently downloaded datasets
-- Parse multiple annotation types (boxes, polygons, rotated boxes)
-- Intelligent dataset splitting (train/validation)
-- Generate YOLO configuration files
-- Data validation and cleaning
-
-### 10. One-Click Download and Convert Dataset
-Automated data preparation workflow:
-- Specify CVAT task ID
-- Auto-download annotation data
-- Immediately convert to YOLO format
-- Generate ready-to-use training configurations
-- Complete operation logging
-
-### 11. Exit Program
-Safely exit the client application
-
-## Technical Implementation
-
-### MCP Architecture Extensions
-- Added `/deploy` endpoint for model deployment requests
-- Added `/open_annotation` endpoint for opening annotation interface
-- Extended JSON communication protocol for complex parameter passing
-- Improved error handling and status reporting mechanisms
-
-### CVAT API Integration
-- Complete CVAT REST API wrapper
-- Support for task creation, data upload, model management
-- Automated annotation requests and status monitoring
-- Data download and format conversion capabilities
-
-### Model Deployment Automation
-- Template-based Nuclio function generation
-- Automatic Docker image and dependency configuration
-- GPU resource management and performance optimization
-- Service health checks and fault recovery
-
-### Data Format Conversion
-- Support for bounding boxes, polygons, rotated boxes, and other annotation types
-- Intelligent coordinate system conversion and normalization
-- Automatic dataset validation and cleaning
-- Standard YOLO configuration file generation
-
-## Requirements
-
-### Python Dependencies
-```
-ultralytics>=8.0.0    # YOLO model training
-flask>=2.0.0          # HTTP server
-requests>=2.25.0      # HTTP client
-openai>=1.0.0         # LLM API calls
-playwright>=1.30.0    # Browser automation
-tqdm>=4.62.0          # Progress bars
-python-dotenv>=0.19.0 # Environment variable management
-```
-
-### System Dependencies
-- Python 3.8+
-- Docker (for CVAT and Nuclio)
-- WSL (Linux compatibility layer for Windows)
-
-### External Services
-- CVAT annotation system (deployed via Docker)
-- Nuclio serverless computing platform
-- OpenRouter API (for natural language processing)
-
-## Installation
-
-### 1. Clone Repository
+### 安装依赖
 ```bash
-git clone <repository-url>
-cd yolo-cvat-automation
+# 服务器端
+pip install flask ultralytics
+
+# 客户端
+pip install requests openai
 ```
 
-### 2. Install Python Dependencies
-```bash
-pip install -r requirements.txt
-python -m playwright install
-```
+## 使用方法
 
-### 3. Setup CVAT Environment
-```bash
-# Download and start CVAT
-git clone https://github.com/opencv/cvat.git
-cd cvat
-docker-compose up -d
-```
-
-### 4. Configure API Keys
-Set API key in `main.py` or via environment variable:
-```bash
-export OPENROUTER_API_KEY=your_api_key_here
-```
-
-### 5. Configure CVAT Connection
-Edit `config.py` to set CVAT connection parameters:
-```python
-CVAT_URL = "http://localhost:8080"
-CVAT_USERNAME = "admin"
-CVAT_PASSWORD = "your_password"
-```
-
-## Quick Start
-
-### 1. Start Server
+### 步骤1：启动服务器
+在训练服务器（通常是具有GPU的机器）上运行：
 ```bash
 python server.py
 ```
+服务器将在0.0.0.0:5000端口监听训练请求。
 
-### 2. Run Client
+### 步骤2：配置客户端
+在客户端（可以是任何设备）上，修改main.py中的服务器URL：
+```python
+# 将此行
+url = 'http://localhost:5000/train'
+# 修改为服务器的IP地址
+url = 'http://服务器IP:5000/train'
+```
+
+同时确保设置了OpenRouter API密钥：
+```python
+# 方法1：设置环境变量
+export OPENROUTER_API_KEY=您的API密钥
+
+# 方法2：直接在代码中设置
+API_KEY = "您的API密钥"
+```
+
+### 步骤3：运行客户端
+在客户端机器上执行：
 ```bash
 python main.py
 ```
 
-### 3. Choose Operation Mode
-- For new users, natural language instruction mode is recommended
-- For precise control, use manual parameter mode
+客户端将显示菜单，您可以选择：
+1. 使用自然语言指令训练模型（例如："训练一个yolov8n模型识别猫狗，跑3轮"）
+2. 手动指定训练参数
+3. 退出程序
 
-## Workflow Examples
+### 实际测试效果
+本项目已在以下环境成功测试：
+- 服务器：Windows PC（192.168.1.6）运行server.py和train.py
+- 客户端：笔记本电脑运行main.py，通过WiFi连接到服务器
+- 笔记本成功解析自然语言指令，发送到PC，PC执行训练并返回结果
 
-### Scenario 1: Custom Model Training
-```
-1. Upload data to CVAT → Select menu option 5
-2. Manually annotate in CVAT
-3. Download and convert dataset → Select menu option 10
-4. Train YOLO model → Select menu option 2
-5. Deploy model to CVAT → Select menu option 4
-```
+## 技术实现详解
 
-### Scenario 2: Pre-trained Model Annotation
-```
-1. Upload data for annotation → Select menu option 5
-2. Run auto annotation → Select menu option 6
-3. Review annotation results → Select menu option 7
-4. Download annotated data → Select menu option 8
-```
+### MCP架构实现
+项目采用了简单而有效的MCP（消息通信协议）实现方式：
+1. **通信协议**：使用HTTP协议和JSON格式作为基础通信机制
+2. **API端点**：服务器定义`/train`端点接收POST请求
+3. **消息格式**：
+   - 请求体：`{"model_type": "yolov8n", "epochs": 1, "data": "coco128.yaml"}`
+   - 响应体：`{"status": "success/error", "message": "描述", "details": "详情"}`
 
-### Scenario 3: Natural Language Control
-```
-Input: "Download dataset from task 14"
-System executes: Automatically downloads annotation data from specified CVAT task
+### 自然语言解析
+客户端使用OpenRouter API进行自然语言解析：
+1. 定义function calling格式，指定训练函数和参数结构
+2. 将用户输入发送给LLM，请求其解析为函数调用
+3. 解析返回的函数调用参数，转换为HTTP请求参数
 
-Input: "Convert recently downloaded dataset"
-System executes: Converts downloaded CVAT data to YOLO training format
+### 错误处理机制
+系统实现了多层次的错误处理：
+1. **客户端解析错误**：当LLM无法解析指令时，使用默认参数
+2. **网络通信错误**：添加重试机制和超时处理
+3. **服务器执行错误**：捕获训练过程异常并返回详细错误信息
+4. **日志记录**：使用logging模块跟踪系统运行状态和错误
 
-Input: "Train yolov8n model using latest dataset"
-System executes: Uses converted dataset to train specified model
-```
+## 与单机版YOLO Agent的区别
 
-## Advanced Features
+| 特性 | 单机版YOLO Agent | MCP架构YOLO Agent |
+|------|----------------|------------------|
+| 架构 | 单体应用，直接函数调用 | 客户端-服务器分离，通过HTTP通信 |
+| 部署 | 单一设备 | 可分布在多个设备上 |
+| 资源使用 | 用户交互和训练在同一设备 | 将计算密集型任务放在专用服务器 |
+| 远程控制 | 不支持 | 支持从任何设备远程控制 |
+| 可扩展性 | 有限 | 高（支持多客户端、负载均衡等） |
+| 状态保持 | 必须保持应用运行 | 服务器可持续运行，客户端可随时连接 |
 
-### Custom Model Deployment
-The system automatically discovers latest trained model weights and generates corresponding Nuclio services:
-- Automatic GPU resource configuration
-- Unique service name generation
-- Integrated COCO 80-class label system
+## 未来计划
 
-### Dataset Management
-- Auto-identify and recommend latest converted datasets
-- Support intelligent conversion of multiple data formats
-- Dataset version management and history tracking
+* **实时进度反馈**：实现训练过程中的实时进度推送（WebSocket/SSE）
+* **多任务队列**：支持多个训练任务排队和并发执行
+* **用户认证**：添加认证机制，确保只有授权用户可以使用服务
+* **Web界面**：开发基于浏览器的用户界面，替代命令行客户端
+* **分布式训练**：支持跨多台服务器的分布式训练任务
 
-### Batch Operations
-- Support multi-task parallel processing
-- Batch data download and conversion
-- Automatic retry and error recovery
+## 贡献与许可证
 
-## Troubleshooting
-
-### Common Issues
-
-**1. CVAT Connection Failed**
-- Check if Docker service is running properly
-- Verify CVAT container status: `docker ps`
-- Ensure port 8080 is not occupied
-
-**2. Browser Automation Failed**
-- Try different browser types
-- Check if Playwright browser drivers are fully installed
-- Ensure system has graphical interface environment
-
-**3. Model Deployment Failed**
-- Check if Nuclio service is running properly
-- Verify model file paths and permissions
-- Check deployment logs for detailed error information
-
-**4. Natural Language Parsing Errors**
-- Verify OpenRouter API key configuration
-- Check network connection status
-- Use manual parameter mode as fallback
-
-### Log Files
-The system generates detailed log files:
-- `mcp_client.log` - Client operation logs
-- `mcp_server.log` - Server runtime logs
-- `browser_controller.log` - Browser operation logs
-
-### Debug Mode
-In development environment, enable debug mode for more detailed information:
-```python
-logging.basicConfig(level=logging.DEBUG)
-```
-
-## Performance Optimization
-
-### Hardware Recommendations
-- **CPU**: 8+ cores for multi-task parallel processing
-- **Memory**: 16GB+ for large dataset processing
-- **GPU**: NVIDIA graphics card with CUDA acceleration for training and inference
-- **Storage**: SSD for improved data I/O performance
-
-### System Tuning
-- Adjust batch sizes to optimize GPU utilization
-- Configure appropriate worker process counts
-- Use data caching to reduce redundant I/O operations
-
-## Extension Development
-
-### Adding New Data Formats
-Extend the `FORMAT_MAP` dictionary in `cvat_api.py`:
-```python
-FORMAT_MAP["CUSTOM_FORMAT"] = "Custom Format 1.0"
-```
-
-### Integrating New Model Architectures
-Modify `train.py` and deployment templates to support other deep learning frameworks.
-
-### Custom Annotation Types
-Extend conversion functionality to support point annotations, line annotations, and other annotation types.
-
-## License
-
-This project is licensed under the MIT License. See LICENSE file for details.
-
-## Contributing
-
-Contributions are welcome through:
-- Submitting issues to report problems
-- Submitting pull requests to improve code
-- Improving documentation and usage examples
-- Sharing usage experiences and best practices
-
-## Acknowledgments
-
-- Built with [Ultralytics YOLO](https://github.com/ultralytics/ultralytics)
-- Integrated with [CVAT](https://github.com/opencv/cvat)
-- Powered by [Playwright](https://playwright.dev/) for browser automation
-- Uses [Nuclio](https://nuclio.io/) for serverless model deployment
+* **贡献**：欢迎通过Issues和Pull Requests参与项目改进
+* **许可证**：本项目采用MIT许可证
